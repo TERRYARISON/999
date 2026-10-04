@@ -1,0 +1,23 @@
+name: agent-avatar
+version: "1.1.0"
+description: "Aggregates Hermes session, tool and subagent events into a semantic state for the Agent Avatar mascot to read. A pure observer: it changes nothing about Hermes."
+author: "Agent Avatar"
+
+# The key is `provides_hooks`, matching the `provides_*` convention of Hermes's own
+# bundled plugins. With `hooks:` instead, `hermes plugins doctor` reports
+# "registration adds hook 'X' not listed in provides_hooks" for every one of them
+# (measured 2026-09-03): the plugin still works (registration comes from HOOKS in
+# __init__.py), but the manifest disagrees with what is actually registered — and
+# doctor is the command we ask users to verify with, so it should not print ten
+# warnings the moment they install.
+provides_hooks:
+  - on_session_start
+  - on_session_reset
+  - pre_llm_call
+  - post_llm_call
+  - pre_tool_call
+  - post_tool_call
+  - subagent_start
+  - subagent_stop
+  - on_session_end
+  - on_session_finalize

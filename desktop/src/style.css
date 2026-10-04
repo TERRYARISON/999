@@ -1,0 +1,65 @@
+:root{font-family:system-ui;color:white;--state:#77d8ff;--vocal:0}*{box-sizing:border-box}html,body,#app{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}.shell{height:100%;position:relative;background:transparent}.drag{position:absolute;inset:0 0 auto;height:42px;z-index:5;cursor:grab}.model{width:100%;height:100%;background:transparent;cursor:grab}.model:active,.drag:active{cursor:grabbing}canvas{display:block}.status{position:absolute;left:12%;bottom:26px;padding:7px 11px;border:1px solid color-mix(in srgb,var(--state) 70%,white);border-radius:18px;background:#102030bf;box-shadow:0 0 calc(8px + 22px * var(--vocal)) var(--state);font-size:12px;max-width:76%}
+/* 上限跟着左边距走：left 是 12%，上限还写 calc(100% - 36px) 的话，一行时内容一长就会
+   从右边溢出窗口（40.8 + 304 > 340）—— 两个数字必须一起改，改完这里正好左右对称。 */
+/* 状态栏两行：第一行是状态（常驻），第二行是「具体在干嘛」。
+   🔴 **必须有宽度上限。** 胶囊原来 left:18px 且不换行，而 body 是 overflow:hidden ——
+   一条 471px 的搜索词会有一半在窗口外面，静默地没了（跟当初首启向导是同一个毛病）。
+   详情在 hook 那边已经截到 80 字符（两行的实际容量），这里是第二道：最多两行，再长就省略号。 */
+/* 🔴 第一行**不许折行**。框窄了之后它是会折的（状态名 + 手动触发提示 + 穿透提示能叠到
+   两百多像素），而一折行，上面那条「第一行位置不变」的保证就没了 —— 高度变了，底边锚定
+   会把它顶上去。宁可把尾巴截掉：最前面的状态名才是常驻要看的那个。 */
+.status-line{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status-doing{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:3px;font-size:11px;opacity:.72;line-height:1.35;word-break:break-word}
+/* 只有当前真有 doing 文字时，胶囊才变成一个撑满可用宽度、最多两行高的对话框
+   （data-detail 由 main.ts 只在 detailEnabled && doing 时设置）。没有详情文字时——
+   包括详情开关打开但工具还没报告 doing 的时候——胶囊回到原来那个随内容伸缩的小样子。
+   第一行会跟着一起挪位置：比起常年占一条空行，更像真的在说话。
+   左右两侧留同样的边距，看起来像游戏里的对话框而不是一个贴边的标签。 */
+.status[data-detail]{bottom:8px;width:76%}
+.status[data-detail] .status-doing{min-height:15px}
+.status[data-pos="top-left"][data-detail],.status[data-pos="top-right"][data-detail]{bottom:auto}
+/* 🔴 卡片可能比窗口高 —— 桌宠窗口本来就小，而中文文案又比英文长。
+   不给上限的话它被窗口直接裁掉：实机上「下载免费模型」那个按钮有一半在窗外，
+   而用户既看不到它、也没有滚动条提示还有内容。连接器向导单独写过这两条，
+   模型卡和失败卡没有 —— 提到公共类上，三张卡一起管。 */
+.fallback{position:relative;margin:34px 24px;padding:22px;max-height:calc(100% - 68px);overflow:auto;color:#17324d;background:#eef7ff;border:1px solid #b8daf4;border-radius:14px;box-shadow:0 10px 30px #27648a2e}.fallback b{display:block;margin-bottom:10px;font-size:16px}.fallback p{margin:0 0 16px;line-height:1.65}.fallback strong{color:#075f9f}.onboarding{padding-top:54px}.onboarding-language{position:absolute;top:12px;right:14px;display:flex;align-items:center;gap:6px;color:#537087;font-size:11px}.onboarding-language select{padding:3px 5px;color:#17324d;background:#fff;border:1px solid #b8daf4;border-radius:6px}.fallback-actions{display:grid;gap:8px}.fallback button{width:100%;padding:8px 10px;color:#16466b;background:#fff;border:1px solid #9bc8e8;border-radius:8px;font:inherit;cursor:pointer}.fallback button:first-child{color:#fff;background:#1683c7;border-color:#1683c7}.fallback button:hover{filter:brightness(.96)}.idle{--state:#77d8ff}.thinking{--state:#b997ff}.working{--state:#ffd166}.error{--state:#ff5577}.speaking{--state:#70ffbd}
+/* 状态栏位置：默认左下，其余由 data-pos 覆盖。窗口是透明悬浮窗，人物在窗口里的位置随构图变化，固定一个角落未必合适。 */
+.status[data-pos="top-left"]{top:14px;bottom:auto}
+.status[data-pos="top-right"]{top:14px;bottom:auto;left:auto;right:12%}
+.status[data-pos="bottom-right"]{left:auto;right:12%}
+.status[data-pos="none"]{display:none}
+
+/* 接入向导：窗口只有 340×440，五家 + 手动步骤放不下时让卡片自己滚，不要撑出窗口。
+   行内配色跟随卡片文字（connectors.css 只用相对色），故这里只管尺寸。 */
+.connector-wizard{position:absolute;inset:0;margin:16px;padding:16px;max-height:calc(100% - 32px);overflow:auto;z-index:10}
+.connector-wizard b{margin-bottom:6px;font-size:15px}
+.connector-wizard p{margin:0 0 12px;font-size:12px}
+.connector-wizard .connector-list{margin-bottom:12px}
+/* .fallback button:first-child 会把卡片里第一个按钮涂成主色。「以后再说」是退出口不是主行动，
+   涂成主色会把它变成最显眼的东西，而最显眼的应当是那五个「安装」。 */
+/* .fallback button:first-child 会把每组按钮里的第一个涂成主色 —— 在这里那是「安装说明」和
+   「以后再说」，两个都不是主行动。主行动是「安装」，它的配色写在 connectors.css。 */
+.connector-wizard .fallback-actions button:first-child,
+.connector-wizard .connector-actions button:first-child{color:#16466b;background:none;border-color:#9bc8e8}
+.connector-wizard .fallback-actions button:first-child{background:#fff}
+
+/* 引导卡片的顶栏（见 main.ts 的 cardBar）。无边框窗口没有系统标题栏，这三件事卡片自己给。 */
+.fallback .card-bar{display:flex;align-items:center;gap:8px;margin:-8px -8px 10px;padding:4px 6px;border-radius:10px}
+.fallback .card-bar .grip{flex:1;color:#7ba7c6;font-size:13px;letter-spacing:2px;cursor:grab;user-select:none}
+.fallback .card-bar .grip:active{cursor:grabbing}
+.fallback .card-bar .onboarding-language{position:static;display:flex;align-items:center;gap:5px}
+.fallback .card-button{width:24px;height:22px;padding:0;flex:none;color:#16466b;background:#fff;border:1px solid #b8daf4;border-radius:6px;font-size:12px;line-height:1;cursor:pointer}
+.fallback .card-button:hover{background:#e3f1fb}
+/* 顶栏接管了语言下拉，原来给它留的空白不再需要 */
+.onboarding{padding-top:16px}
+/* 向导可滚动，顶栏必须跟着停在顶上 —— 滚下去之后关不掉窗口正是这次要修的毛病 */
+.connector-wizard .card-bar{position:sticky;top:-16px;z-index:2;background:#eef7ff}
+
+/* 引导页的拖放区。这一屏出现时用户手上正拿着模型文件夹，直接接住它 ——
+   原来这里是「打开设置」+「重新加载」两个按钮，要走五步才能装上一个模型。 */
+.onboarding-drop{margin:0 0 12px;padding:22px 14px;color:#4a6b85;text-align:center;
+  background:#f7fbff;border:2px dashed #9bc8e8;border-radius:10px;line-height:1.5;
+  transition:background .12s,border-color .12s}
+.onboarding-drop.over{color:#0d5a8c;background:#e3f1fb;border-color:#1683c7}
+.onboarding-drop.ok{color:#0f6b3f;background:#eefaf3;border-style:solid;border-color:#5cbf8f}
+.onboarding-drop.error{color:#8c2740;background:#fdeef1;border-style:solid;border-color:#e0879b}

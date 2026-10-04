@@ -1,0 +1,29 @@
+{
+  "name": "agent-avatar",
+  "version": "1.1.0",
+  "description": "Aggregates Codex session, tool and subagent events into a semantic state for the Agent Avatar desktop companion to read. A pure observer: it changes nothing about Codex and takes no part in permission decisions.",
+  "author": {
+    "name": "Agent Avatar"
+  },
+  "license": "MIT",
+  "keywords": [
+    "avatar",
+    "desktop pet",
+    "status",
+    "live2d"
+  ],
+  "hooks": "./hooks.json",
+  "interface": {
+    "displayName": "Agent Avatar",
+    "shortDescription": "Let a desktop mascot follow your Codex session",
+    "longDescription": "Watches Codex's lifecycle events (prompting, running tools, delegating to subagents, wrapping up) and aggregates them into one mutually exclusive semantic state written to a local state file, which the Agent Avatar desktop mascot uses to switch expressions and motions. Read-only: it never returns an instruction, never blocks a tool and never takes part in approvals.",
+    "developerName": "Agent Avatar",
+    "category": "Productivity",
+    "capabilities": [
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Make the desktop mascot follow what this task is doing"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "agent-avatar",
+  "description": "Aggregates WorkBuddy session, tool and subagent events into a semantic state for the Agent Avatar desktop companion to read. Requires the Agent Avatar desktop app. A pure observer: it never changes WorkBuddy's behaviour.",
+  "version": "1.1.0",
+  "author": {
+    "name": "Agent Avatar"
+  },
+  "homepage": "https://github.com/joyparkray/agent-avatar",
+  "repository": "https://github.com/joyparkray/agent-avatar",
+  "license": "MIT",
+  "hooks": "./hooks/hooks.json"
+}

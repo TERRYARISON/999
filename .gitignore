@@ -1,0 +1,34 @@
+# 合仓前的本地 skin/ 仓库；desktop/ 已通过 subtree 纳入主仓库。
+skin/
+
+# 发布清扫时暂存的旧资料，只作本地备份，不进版本控制或发布物。
+backup/
+
+# 组装与打包生成物。
+release/
+# 图标/素材工作区（本地中间产物，不进版本控制）。
+build/
+# 图标替换前的备份（本地保留，不进公开仓库）。
+desktop/src-tauri/icons.bak-*/
+
+# Python 本地测试缓存。
+__pycache__/
+.pytest_cache/
+
+# os / 编辑器
+.DS_Store
+*.log
+
+# Claude Code 的本地设置（按约定不入库）
+.claude/settings.local.json
+
+# 内部文档与历史备份，不随公开仓库分发。
+private/
+
+# Windows 移植计划：内部规划文档（含签名与商业方向），不随公开仓库分发。
+docs/WINDOWS-PORT.md
+
+# Built by connectors/build-bundle.sh + fetch-python.sh: the connector tree and the
+# interpreter the app ships. Generated from connectors/ and pinned upstream releases,
+# so committing it would only be a second copy that can disagree.
+desktop/src-tauri/resources/connectors/
