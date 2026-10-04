@@ -1,0 +1,148 @@
+# 公开的质量记录：四套测试在 macOS 与 Windows 上各跑一遍。
+#
+# 为什么不用 Linux runner：Rust 侧有 macOS 专属的原生代码（Core Audio process tap 的
+# Objective-C shim 由 build.rs 用 cc 编出来），在 Linux 上根本编不过。
+#
+# 为什么补 Windows：从 v1.1 起 Windows 是一等平台，而 WP2/WP3/WP4 那类「只在 Windows
+# 触发」的分支，不进矩阵就永远无人验证 —— 那正是移植里最容易静默失效的部分。
+# CI 的职责边界到此为止：编译 + 单元测试。窗口透明、渲染、GPU 加速、交互手感、真实安装
+# 一律要真机 —— GitHub 的 runner 没有 GPU，WebGL 会回落软件渲染，在那上面测渲染无论红绿都不可信。
+name: CI
+
+# 🔴 **开发分支也要进来。** 原来只有 main，而实际的活全在 windows-port 上 ——
+# 那条分支 70 个提交、八个版本，一次自动 CI 都没触发过。结果是 `resources/connectors`
+# 那个坑（见下面的 Connector bundle 一步）躺了很久没人看见：有资源声明的分支从不跑 CI，
+# 跑 CI 的分支没有那行声明，两边正好互相打掩护。
+on:
+  push:
+    branches: [main, windows-port]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  desktop:
+    name: Desktop app (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # 一边红不该掩盖另一边的结果 —— 移植期最想看的恰恰是「哪个平台红」
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - name: Types
+        run: npx tsc --noEmit
+      - name: Front-end unit tests
+        run: npx vitest run
+      # 🔴 **必须在 cargo 之前。** `tauri.conf.json` 声明了 `resources/connectors`，
+      # 而 Tauri 在**编译期**就检查它在不在 —— 不在就直接 `resource path ... doesn't exist`
+      # 退出，一行代码都没编、一个测试都没跑。那 68 MB（67 MB 是自带解释器）**故意不进 git**
+      # （.gitignore 第 34 行），因为它不是源码，是两个脚本从上游下载+组装出来的产物。
+      # 开发机上跑过一次就有了，CI 那台全新机器没有 —— 这正是本项目最典型的
+      # 「我这儿能跑」失效方式，也是 CI 存在的理由。
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Connector bundle
+        # build-bundle.sh 的自检要一个解释器，默认找 `python3`。Windows 上 `python3` 可能
+        # 是那个 0 字节的 Microsoft Store 空壳（fetch-python.sh 开头的注释就在说这件事），
+        # 所以用 setup-python 保证有的 `python`，别让它去撞空壳。
+        #
+        # 🔴 用 `env:` 而不是 `VAR=value cmd` 前缀：**windows runner 的默认 shell 是
+        # PowerShell**，它不认那种前缀，会把 `AGENT_AVATAR_PYTHON=python` 当成命令名找：
+        #   The term 'AGENT_AVATAR_PYTHON=python' is not recognized as a name of a cmdlet
+        env:
+          AGENT_AVATAR_PYTHON: python
+        run: |
+          bash ../connectors/fetch-python.sh
+          bash ../connectors/build-bundle.sh
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  connectors:
+    name: Connectors (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # pytest 是开发依赖：connector 本身只用标准库，用户的 harness 不需要装它。
+      # 测试用 tmp_path / 裸 assert，`unittest discover` 收集不到（会报 Ran 0 tests ... OK）。
+      - run: python -m pip install --upgrade pip pytest
+      - name: Connector tests
+        working-directory: connectors
+        run: python -m pytest -q
+      - name: Marketplace tree
+        # 造出用户真正会 clone 的那棵树，并逐项自检：
+        #   - 每组装一家就喂一条事件跑一次（漏拷 core 的失败在真实注册里是静默的）
+        #   - 三份清单必须是合法 JSON、指到的目录必须真的在（清单坏掉时 harness 只会
+        #     「不显示这一项」，不报错 —— 那种失败没人查得出来）
+        #   - 五家版本号必须一致
+        #
+        # 只在 POSIX 上跑：这两个是 /bin/sh 脚本（heredoc python、chmod +x、rm -rf）。
+        # Windows 侧不需要造发布树 —— 发布树必须**机器无关**，而 Windows 的
+        # assemble.ps1 会把本机解释器路径烤进去，那是**安装时**才该做的事。
+        if: runner.os != 'Windows'
+        run: sh connectors/build-bundle.sh "${{ runner.temp }}/bundle"
+
+      - name: Release tree must not be machine-specific
+        # 发布树是给所有人的那一份。烤进任何一台机器的解释器绝对路径，
+        # 用户装到的就是「指向别人机器上某个 python」的插件 —— 静默失效。
+        if: runner.os != 'Windows'
+        run: |
+          # 抓的是**某台机器专属**的路径：盘符、以及某个用户的 home。
+          # `/usr/bin/python3` 不算 —— Codex 那条 POSIX 命令本来就写死了它，是故意的。
+          # 盘符要求前面不是字母，否则 `https://` 里的 `s://` 会被当成盘符。
+          if grep -rlE '(^|[^A-Za-z])[A-Za-z]:[\/]|/(Users|home)/[^/"]+/' "${{ runner.temp }}/bundle/marketplace" --include='*.json' --include='*.mjs'; then
+            echo '发布树里出现了机器相关的绝对路径' >&2; exit 1
+          fi
+
+  # 出口条件：Windows 无头构建能产出可安装的 exe。
+  # 只在 main 推送与手动触发时跑 —— 每个 PR 都编一次 release 太贵，而它验的是打包链路
+  # （NSIS、图标、tauri.windows.conf.json 的 targets 合并），不是代码正确性。
+  windows-bundle:
+    name: Windows NSIS bundle
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      # 理由同上，而且这个 job 是**真打包** —— 连接器树和解释器就是要被塞进安装包的东西
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Connector bundle
+        env:
+          AGENT_AVATAR_PYTHON: python
+        run: |
+          bash ../connectors/fetch-python.sh
+          bash ../connectors/build-bundle.sh
+      - name: Build NSIS installer
+        run: npm run tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-avatar-windows-nsis
+          path: desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
